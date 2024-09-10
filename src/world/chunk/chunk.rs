@@ -29,10 +29,10 @@ impl Chunk {
         }
     }
 
-    // todo: greedy meshing (binary)
+    // todo: greedy meshing (binary) and file reformat
     pub fn make_mesh(&mut self) {
-        let mut vertices = Vec::new(); // max realistic worst case scenario
-        let mut indices = Vec::new(); // max realistic worst case scenario
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
         let mut index_offset = 0;
 
         for x in 0..CHUNK_SIZE {
@@ -79,9 +79,6 @@ impl Chunk {
                 }
             }
         }
-        // vertices.shrink_to_fit();
-        // indices.shrink_to_fit();
-        // println!("vert len: {}, indice len: {}", vertices.len(), indices.len());
         self.mesh = ChunkMesh::create(vertices, indices);
     }
 }
@@ -117,26 +114,6 @@ fn get_texture_id(block_type: BlockType) -> u32 {
 // todo: pack data into an ideally i32, but realistically an i64
 // total 18, todo: allocate more when need
 // x: 6 bits, y: 6 bits z: bits, normal: 3, id: 3
-
-
-// pub fn pack(x: u8, y: u8, z: u8, normal: u8, texture_id: u8) -> i32 {
-//     (x as i32) << 18 |  // Shift x to the most significant 6 bits
-//     (y as i32) << 12 |  // Shift y to the next 6 bits
-//     (z as i32) << 6 |   // Shift z to the next 6 bits
-//     (normal as i32) << 3 | // Shift normal to the next 3 bits
-//     (texture_id as i32)
-// }
-
-pub fn unpack(packed: i32) -> (u8, u8, u8, u8, u8) {
-    let id = (packed & 0x07) as u8; // Extract 3 bits for id
-    let normal = ((packed >> 3) & 0x07) as u8; // Extract 3 bits for normal
-    let z = ((packed >> 6) & 0x3F) as u8; // Extract 6 bits for z
-    let y = ((packed >> 12) & 0x3F) as u8; // Extract 6 bits for y
-    let x = ((packed >> 18) & 0x3F) as u8; // Extract 6 bits for x
-
-    (x, y, z, normal, id)
-}
-
 fn generate_face_vertices(
     x: usize,
     y: usize,
@@ -187,10 +164,10 @@ fn generate_face_vertices(
             pack(x + 1, y + 1, z, 4),
         ],
         Face::Bottom => vec![
-            pack(z, y, x, 5),
-            pack(z + 1, y, x, 5),
-            pack(z + 1, y, x + 1, 5),
-            pack(z, y, x + 1, 5),
+            pack(x, y, z, 5),
+            pack(x + 1, y, z, 5),
+            pack(x + 1, y, z + 1, 5),
+            pack(x, y, z + 1, 5),
         ],
     }
 }

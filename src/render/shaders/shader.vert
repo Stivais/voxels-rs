@@ -19,8 +19,8 @@ void main()
     // Apply transformation and set the position
     gl_Position = projection * view * vec4(worldPosition + aPos, 1.0);
 
-    int normal = (packedData >> 3) & 0x07; // Extract normal (3 bits, range: 0-7)
-    int textureID = packedData & 0x07;      // Extract texture ID (3 bits, range: 0-7)
+    int normal = (packedData >> 3) & 0x07;
+    int textureID = packedData & 0x07;
 
     switch (normal) {
         case 0: // Front

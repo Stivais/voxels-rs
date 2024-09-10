@@ -1,6 +1,7 @@
 extern crate glfw;
 
 use std::time::Instant;
+use fastnoise_lite::{FastNoiseLite, NoiseType};
 use gl::{DEPTH_TEST, TEXTURE_2D_ARRAY};
 
 use glfw::{Action, Context, GlfwReceiver, Key, Window, WindowEvent};
@@ -12,7 +13,7 @@ use crate::render::camera::CameraMovement::{BACKWARD, DOWN, FORWARD, LEFT, RIGHT
 use crate::render::shaders::Shader;
 use crate::render::textures::texture_array::TextureArray;
 use crate::world::chunk::chunk::{CHUNK_SIZE};
-use crate::world::world::World;
+use crate::world::world::{make_example_chunks, World};
 
 mod render;
 mod world;
@@ -36,6 +37,7 @@ fn main() {
 
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
+    // uncaps fps
     glfw.set_swap_interval(glfw::SwapInterval::None);
 
 
@@ -48,7 +50,15 @@ fn main() {
     let mut delta_time: f32;
     let mut last_frame: f32 = 0.0;
 
+
+    let noise = {
+        let mut noise = FastNoiseLite::with_seed(8008135);
+        noise.set_noise_type(Some(NoiseType::Perlin)); // No need to wrap in Some if unnecessary
+        noise
+    };
+
     let mut world = World::new();
+    make_example_chunks(&mut world, &noise);
 
     let shader = Shader::new(
         "src/render/shaders/shader.vert",

@@ -1,5 +1,6 @@
 use gl::types::{GLenum, GLint, GLsizei, GLvoid};
 
+// todo: look into bindless textures, (Mainly for texture pack support)
 pub struct TextureArray {
     pub id: u32,
     pub layers: usize,

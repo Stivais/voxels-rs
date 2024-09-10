@@ -1,10 +1,10 @@
 #version 330 core
 
-in vec3 TexCoord; // The texture coordinates from the vertex shader
+in vec3 TexCoord;
 
-out vec4 FragColor; // The final color output
+out vec4 FragColor;
 
-uniform sampler2DArray textureArray; // Array of textures
+uniform sampler2DArray textureArray;
 
 void main()
 {
