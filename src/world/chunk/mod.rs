@@ -1,2 +1,2 @@
 pub mod chunk;
-mod mesh;
+pub mod mesh;

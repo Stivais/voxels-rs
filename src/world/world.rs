@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use fastnoise_lite::FastNoiseLite;
 use crate::world::chunk::chunk::{Block, BlockType, Chunk, CHUNK_SIZE, ChunkPosition};
+use crate::world::chunk::mesh::greedy_mesh;
 
 pub struct World {
     pub chunks: HashMap<ChunkPosition, Arc<Chunk>>,
@@ -20,7 +21,7 @@ impl World {
     }
 }
 
-const CHUNK_AMOUNT: i32 = 8; // multiples by 2
+const CHUNK_AMOUNT: i32 = 48; // multiples by 2
 
 // todo: multi threaded
 pub fn make_example_chunks(world: &mut World, noise: &FastNoiseLite) {
@@ -42,20 +43,21 @@ fn generate_chunk_noise(chunk_x: i32, chunk_z: i32, noise: &FastNoiseLite) -> Ch
     for x in 0..cs {
         for z in 0..cs {
             let height = (noise.get_noise_2d((chunk_x + x) as f32, (chunk_z + z) as f32) + 1.0) / 2.0;
+            // let y = 0;// (height * 32.0) as i32;
             for y in 0..(height * 32.0) as i32 {
                 let index = (x + y * cs + z * cs * cs) as usize;
 
                 let block_type: BlockType;
-                if y > (CHUNK_SIZE as i32 / 2) {
-                    block_type = BlockType::COBBLESTONE
-                } else {
-                    block_type = BlockType::DIRT
-                }
+                // if y > (CHUNK_SIZE as i32 / 2) {
+                //     block_type = BlockType::COBBLESTONE
+                // } else {
+                    block_type = BlockType::DIRT;
+                // }
 
                 chunk.blocks[index] = Block { block_type };
             }
         }
     }
-    chunk.make_mesh();
+    greedy_mesh(&mut chunk);
     chunk
 }

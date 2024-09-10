@@ -82,7 +82,7 @@ fn main() {
         gl::CullFace(gl::BACK);
         gl::FrontFace(gl::CCW);
 
-        // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+        gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
     }
 
     // fps metrics

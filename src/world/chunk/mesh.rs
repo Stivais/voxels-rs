@@ -1,6 +1,7 @@
 use std::os::raw::c_void;
 use std::ptr;
 use gl::types::{GLfloat, GLsizei, GLsizeiptr};
+use crate::world::chunk::chunk::{Chunk, CHUNK_SIZE};
 
 pub struct ChunkMesh {
     vao: u32,
@@ -36,11 +37,6 @@ impl ChunkMesh {
         gl::BindVertexArray(0);
     }
 
-
-    // data: x 0.0, y 0.0, z 0.0, uvs 0.0, 0.0 textureID i32
-
-
-
     unsafe fn setup_mesh(&mut self, vertices: Vec<i32>, indices: Vec<u32>) {
         gl::GenVertexArrays(1, &mut self.vao);
         gl::GenBuffers(1, &mut self.vbo);
@@ -67,4 +63,82 @@ impl ChunkMesh {
 
         self.indices_length = indices.len() as i32
     }
+}
+
+pub fn greedy_mesh(chunk: &mut Chunk) {
+    let mut vertices: Vec<i32> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    let mut index_offset = 0;
+
+    for y in 0..CHUNK_SIZE {
+        let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
+
+        fn is_visible(chunk: &Chunk, x: usize, y: usize, z: usize) -> bool {
+            !chunk.is_air(x, y, z) && chunk.is_air(x, y + 1, z)
+        }
+
+        for x in 0..CHUNK_SIZE {
+            for z in 0..CHUNK_SIZE {
+                if is_visible(chunk, x, y, z) && !visited[x + z * CHUNK_SIZE] {
+                    let mut w = 1;
+                    let mut d = 1;
+
+
+                    while x + w < CHUNK_SIZE && is_visible(chunk, x + w, y, z) && !visited[(x + w) + z * CHUNK_SIZE] {
+                        w += 1;
+                    }
+
+                    'outer: while z + d < CHUNK_SIZE {
+                        for i in 0..w {
+                            if chunk.is_air(x + i, y, z + d) || visited[(x + i) + (z + d) * CHUNK_SIZE] {
+                                break 'outer;
+                            }
+                        }
+                        d += 1;
+                    }
+
+                    // Mark all blocks in this quad as visited
+                    for dx in 0..w {
+                        for dz in 0..d {
+                            visited[(x + dx) + (z + dz) * CHUNK_SIZE] = true;
+                        }
+                    }
+
+                    // Generate vertices and indices for the quad
+                    vertices.extend_from_slice(&*quad_vertices(x, y, z, w, d));
+                    indices.extend_from_slice(&*generate_block_indices(index_offset));
+                    index_offset += 4;
+                }
+            }
+        }
+    }
+    chunk.mesh = ChunkMesh::create(vertices, indices)
+}
+
+fn pack_data(x: u8, y: u8, z: u8, normal: u8, id: u8) -> i32 {
+    (x as i32) << 18 |
+        (y as i32) << 12 |
+        (z as i32) << 6 |
+        (normal as i32) << 3 |
+        (id as i32)
+}
+
+fn quad_vertices(x: usize, y: usize, z: usize, w: usize, h: usize) -> Vec<i32> {
+    let (x, y, z, w, h) = (x as u8, y as u8, z as u8, w as u8, h as u8);
+    let texture_id: u8 = 0;
+
+    vec![
+        pack_data(x, y + 1, z, 4, texture_id),
+        pack_data(x, y + 1, z + h, 4, texture_id),
+        pack_data(x + w, y + 1, z + h, 4, texture_id),
+        pack_data(x + w, y + 1, z, 4, texture_id),
+    ]
+}
+
+#[inline]
+fn generate_block_indices(offset: u32) -> Vec<u32> {
+    vec![
+        offset, offset + 1, offset + 2, // First triangle
+        offset, offset + 2, offset + 3,
+    ]
 }
