@@ -21,7 +21,7 @@ impl World {
     }
 }
 
-const CHUNK_AMOUNT: i32 = 48; // multiples by 2
+const CHUNK_AMOUNT: i32 = 64; // multiples by 2
 
 // todo: multi threaded
 pub fn make_example_chunks(world: &mut World, noise: &FastNoiseLite) {

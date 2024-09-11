@@ -9,7 +9,7 @@ pub enum CameraMovement {
     LEFT,
     RIGHT,
     UP,
-    DOWN
+    DOWN,
 }
 
 pub struct Camera {
@@ -31,7 +31,7 @@ impl Camera {
             front: Vec3::new(0.0, 0.0, -1.0),
             up: Vec3::zero(),
             right: Vec3::zero(),
-            world_up: Vec3::unit_y()
+            world_up: Vec3::unit_y(),
         };
         camera.update_vectors();
         camera
@@ -43,9 +43,9 @@ impl Camera {
 
     fn update_vectors(&mut self) {
         let direction = Vec3::new(
-          self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
-          self.pitch.to_radians().sin(),
-          self.yaw.to_radians().sin() * self.pitch.to_radians().cos()
+            self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
+            self.pitch.to_radians().sin(),
+            self.yaw.to_radians().sin() * self.pitch.to_radians().cos(),
         );
 
         self.front = direction.normalized();
@@ -54,7 +54,7 @@ impl Camera {
     }
 
     pub fn process_keyboard(&mut self, direction: CameraMovement, delta_time: f32) {
-        let velocity = 5.0 * delta_time;
+        let velocity = 15.0 * delta_time;
         if direction == FORWARD {
             self.position += self.front * velocity;
         }
@@ -75,7 +75,7 @@ impl Camera {
         }
     }
 
-    pub fn  process_mouse(&mut self, yaw_offset: f32, pitch_offset: f32) {
+    pub fn process_mouse(&mut self, yaw_offset: f32, pitch_offset: f32) {
         self.yaw += yaw_offset;
         self.pitch += pitch_offset;
 

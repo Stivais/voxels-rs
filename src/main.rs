@@ -61,8 +61,8 @@ fn main() {
     make_example_chunks(&mut world, &noise);
 
     let shader = Shader::new(
-        "src/render/shaders/shader.vert",
-        "src/render/shaders/shader.frag",
+        "resources/shader.vert",
+        "resources/shader.frag",
     );
 
     let texture_array = TextureArray::create(
@@ -121,7 +121,7 @@ fn main() {
 
             shader.set_int("textureArray", 0);
 
-            let projection: Mat4 = perspective_gl(45.0f32.to_radians(), 1920.0 / 1080.0, 0.1, 1000.0);
+            let projection: Mat4 = perspective_gl(45.0f32.to_radians(), 1920.0 / 1080.0, 0.1, 10000.0);
             shader.set_mat4("projection", &projection);
             let view: Mat4 = camera.view_matrix();
             shader.set_mat4("view", &view);
