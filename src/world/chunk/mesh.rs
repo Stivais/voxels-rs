@@ -1,264 +1,203 @@
 use std::os::raw::c_void;
-use std::ptr;
 use std::time::Instant;
-use gl::types::{GLfloat, GLsizei, GLsizeiptr};
-use crate::world::chunk::chunk::{Chunk, CHUNK_SIZE};
+
+use gl::{DYNAMIC_STORAGE_BIT, SHADER_STORAGE_BUFFER};
+use gl::types::GLsizeiptr;
+
+use crate::world::chunk::chunk::{Chunk, CHUNK_SIZE, CS_I};
 
 pub struct ChunkMesh {
     vao: u32,
-    vbo: u32,
-    ebo: u32,
-    pub indices_length: i32,
+    ssbo: u32,
+    pub vertices_len: i32,
 }
 
 impl ChunkMesh {
     pub fn empty() -> ChunkMesh {
         ChunkMesh {
             vao: 0,
-            vbo: 0,
-            ebo: 0,
-            indices_length: 0
+            ssbo: 0,
+            vertices_len: 0,
         }
     }
 
-    pub fn create(vertices: Vec<i32>, indices: Vec<u32>) -> ChunkMesh {
-        let mut mesh = ChunkMesh {
-            vao: 0,
-            vbo: 0,
-            ebo: 0,
-            indices_length: 0
-        };
-        unsafe { mesh.setup_mesh(vertices, indices) }
+    pub fn create(vertices: Vec<u64>) -> ChunkMesh {
+        let mut mesh = ChunkMesh::empty();
+        unsafe {
+            mesh.setup_mesh(vertices)
+        }
         mesh
     }
 
     pub unsafe fn draw(&self) {
         gl::BindVertexArray(self.vao);
-        gl::DrawElements(gl::TRIANGLES, self.indices_length, gl::UNSIGNED_INT, ptr::null());
+        gl::BindBufferBase(SHADER_STORAGE_BUFFER, 0, self.ssbo);
+        gl::DrawArrays(gl::TRIANGLES, 0, self.vertices_len * 6);
         gl::BindVertexArray(0);
     }
 
-    unsafe fn setup_mesh(&mut self, vertices: Vec<i32>, indices: Vec<u32>) {
-        gl::GenVertexArrays(1, &mut self.vao);
-        gl::GenBuffers(1, &mut self.vbo);
-        gl::GenBuffers(1, &mut self.ebo);
+    unsafe fn setup_mesh(&mut self, vertices: Vec<u64>) {
 
+        // let vertices = vec![
+        //     quad_vertex(0, 0, 0, 2, 1, 0),
+        //     quad_vertex(0, 0, 0, 2, 1,c 1),
+        //     quad_vertex(0, 0, 0, 1, 1, 2),
+        //     quad_vertex(0, 0, 0, 1, 1, 3),
+        //     quad_vertex(0, 0, 0, 2, 1, 4),
+        //     quad_vertex(0, 0, 0, 2, 1, 5)
+        // ];
+        //
+        // let lookup = vec![1, -1, -1, 1, 1, 1, -1];
+        //
+        // let test = vec![
+        //   vec![22u32, 11],
+        //   vec![26, 62],
+        // ];
+        //
+        // for vertex in &vertices {
+        //     let x = (vertex & 0x1Fu64);               // x (5 bits) -> bits 0-4
+        //     let y = (vertex >> 5) & 0x1Fu64;          // y (5 bits) -> bits 5-9
+        //     let z = (vertex >> 10) & 0x1Fu64;         // z (5 bits) -> bits 10-14
+        //     let w = (vertex >> 15) & 0x1Fu32;     // width (5 bits) -> bits 15-19
+        //     let h = (vertex >> 20) & 0x1Fu32;    // height (5 bits) -> bits 20-24
+        //     let normal = (vertex >> 25) & 0x07u32;    // normal (3 bits) -> bits 25-27
+        //
+        //     println!("x {}; y {}; z {}; w {}; h {}; normal {}", x, y, z, w, h, normal);
+        //
+        //     for currVertexID in 0..6 {
+        //         let w_multi = (22 >> currVertexID) & 1u32;
+        //         let h_multi = (11 >> currVertexID) & 1u32;
+        //         let (w_dir, h_dir) = (((normal & 2u32) >> 1) * 2u32, 1u32 + (normal >> 2));
+        //
+        //         if normal > 3u32 {
+        //             println!("wmulti {}; hmulti {}, wdir {}, hdir {}", w_multi, h_multi, w_dir, h_dir);
+        //         }
+        //
+        //         let mut position = vec![x as i32, y as i32, z as i32];
+        //         position[w_dir as usize] += (w * w_multi) as i32;
+        //         position[h_dir as usize] += (h * h_multi) as i32;
+        //
+        //         // println!("xyz: {:?}", position)
+        //     }
+        // }
+
+        gl::GenVertexArrays(1, &mut self.vao);
         gl::BindVertexArray(self.vao);
 
-        gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-        let size = (vertices.len() * size_of::<GLfloat>()) as GLsizeiptr;
-        let data = &vertices[0] as *const i32 as *const c_void;
-        gl::BufferData(gl::ARRAY_BUFFER, size, data, gl::STATIC_DRAW);
+        gl::CreateBuffers(1, &mut self.ssbo);
+        let size = (vertices.len() * size_of::<u64>()) as GLsizeiptr;
+        let data = &vertices[0] as *const u64 as *const c_void;
+        gl::NamedBufferStorage(self.ssbo, size, data, DYNAMIC_STORAGE_BIT);
 
-        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
-        let size = (indices.len() * size_of::<u32>()) as isize;
-        let data = &indices[0] as *const u32 as *const c_void;
-        gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, size, data, gl::STATIC_DRAW);
-
-        let stride = size_of::<i32>() as GLsizei; // stride is the size of a single packed integer
-
-        gl::VertexAttribIPointer(0, 1, gl::INT, stride, ptr::null());
-        gl::EnableVertexAttribArray(0);
-
-        gl::BindVertexArray(0);
-
-        self.indices_length = indices.len() as i32
+        gl::BindBufferBase(SHADER_STORAGE_BUFFER, 0, self.ssbo);
+        self.vertices_len = vertices.len() as i32;
     }
 }
 
 // todo: Reduce code amount
 pub fn greedy_mesh(chunk: &mut Chunk) {
     let start = Instant::now();
-    let mut vertices: Vec<i32> = Vec::new();
-    let mut indices: Vec<u32> = Vec::new();
-    let mut index_offset = 0;
+    let mut vertices: Vec<u64> = Vec::new();
 
-    // top
-    for y in 0..CHUNK_SIZE {
+    // right
+    for x in 0..CS_I {
         let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
 
-        fn is_visible(chunk: &Chunk, x: usize, y: usize, z: usize) -> bool {
-            !chunk.is_air(x, y, z) && chunk.is_air(x, y + 1, z)
+        fn is_visible(chunk: &Chunk, x: isize, y: isize, z: isize) -> bool {
+            !chunk.is_air(x, y, z) && chunk.is_air(x + 1, y, z)
         }
 
-        for x in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                if is_visible(chunk, x, y, z) && !visited[x + z * CHUNK_SIZE] {
+        for y in 0..CS_I {
+            for z in 0..CS_I {
+                if is_visible(chunk, x, y, z) && !visited[(z + y * CS_I) as usize] {
                     let mut w = 1;
                     let mut d = 1;
 
-                    while x + w < CHUNK_SIZE && is_visible(chunk, x + w, y, z) && !visited[(x + w) + z * CHUNK_SIZE] {
+                    while z + w < CS_I && is_visible(chunk, x, y, z + w) && !visited[((z + w) + y * CS_I) as usize] {
                         w += 1;
                     }
 
-                    'outer: while z + d < CHUNK_SIZE {
+                    'outer: while y + d < CS_I {
                         for i in 0..w {
-                            if chunk.is_air(x + i, y, z + d) || visited[(x + i) + (z + d) * CHUNK_SIZE] {
+                            if chunk.is_air(x, y + d, z + i) || visited[((z + i) + (y + d) * CS_I) as usize] {
                                 break 'outer;
                             }
                         }
                         d += 1;
                     }
+
                     for dx in 0..w {
                         for dz in 0..d {
-                            visited[(x + dx) + (z + dz) * CHUNK_SIZE] = true;
+                            visited[((z + dx) + (y + dz) * CS_I) as usize] = true;
                         }
                     }
 
-                    vertices.extend_from_slice(&*quad_vertices(x, y, z, w, d, 4));
-                    indices.extend_from_slice(&*generate_block_indices(index_offset));
-                    index_offset += 4;
-                }
-            }
-        }
-    }
-
-    // bottom
-    for y in 0..CHUNK_SIZE {
-        let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
-
-        fn is_visible(chunk: &Chunk, x: usize, y: usize, z: usize) -> bool {
-            !chunk.is_air(x, y, z) && chunk.is_air(x, y - 1, z)
-        }
-
-        for x in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                if is_visible(chunk, x, y, z) && !visited[x + z * CHUNK_SIZE] {
-                    let mut w = 1;
-                    let mut d = 1;
-
-                    while x + w < CHUNK_SIZE && is_visible(chunk, x + w, y, z) && !visited[(x + w) + z * CHUNK_SIZE] {
-                        w += 1;
-                    }
-
-                    'outer: while z + d < CHUNK_SIZE {
-                        for i in 0..w {
-                            if chunk.is_air(x + i, y, z + d) || visited[(x + i) + (z + d) * CHUNK_SIZE] {
-                                break 'outer;
-                            }
-                        }
-                        d += 1;
-                    }
-                    for dx in 0..w {
-                        for dz in 0..d {
-                            visited[(x + dx) + (z + dz) * CHUNK_SIZE] = true;
-                        }
-                    }
-
-                    vertices.extend_from_slice(&*quad_vertices(x, y, z, w, d, 5));
-                    indices.extend_from_slice(&*generate_block_indices(index_offset));
-                    index_offset += 4;
+                    vertices.push(quad_vertex(x, y, z, w, d, 3));
                 }
             }
         }
     }
 
     // left
-    for x in 0..CHUNK_SIZE {
+    for x in 0..CS_I {
         let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
 
-        fn is_visible(chunk: &Chunk, x: usize, y: usize, z: usize) -> bool {
+        fn is_visible(chunk: &Chunk, x: isize, y: isize, z: isize) -> bool {
             !chunk.is_air(x, y, z) && chunk.is_air(x - 1, y, z)
         }
 
-        for y in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                if is_visible(chunk, x, y, z) && !visited[z + y * CHUNK_SIZE] {
+        for y in 0..CS_I {
+            for z in 0..CS_I {
+                if is_visible(chunk, x, y, z) && !visited[(z + y * CS_I) as usize] {
                     let mut w = 1;
                     let mut d = 1;
 
-
-                    while z + w < CHUNK_SIZE && is_visible(chunk, x, y, z + w) && !visited[(z + w) + y * CHUNK_SIZE] {
+                    while z + w < CS_I && is_visible(chunk, x, y, z + w) && !visited[((z + w) + y * CS_I) as usize] {
                         w += 1;
                     }
 
-                    'outer: while y + d < CHUNK_SIZE {
+                    'outer: while y + d < CS_I {
                         for i in 0..w {
-                            if chunk.is_air(x, y + d, z + i) || visited[(z + i) + (y + d) * CHUNK_SIZE] {
+                            if chunk.is_air(x, y + d, z + i) || visited[((z + i) + (y + d) * CS_I) as usize] {
                                 break 'outer;
                             }
                         }
                         d += 1;
                     }
 
-                    for dx in 0..w {
-                        for dz in 0..d {
-                            visited[(z + dx) + (y + dz) * CHUNK_SIZE] = true;
+                    for width in 0..w {
+                        for depth in 0..d {
+                            visited[((z + width) + (y + depth) * CS_I) as usize] = true;
                         }
                     }
-
-                    vertices.extend_from_slice(&*quad_vertices(x, y, z, w, d, 2));
-                    indices.extend_from_slice(&*generate_block_indices(index_offset));
-                    index_offset += 4;
-                }
-            }
-        }
-    }
-
-    // right
-    for x in 0..CHUNK_SIZE {
-        let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
-
-        fn is_visible(chunk: &Chunk, x: usize, y: usize, z: usize) -> bool {
-            !chunk.is_air(x, y, z) && chunk.is_air(x + 1, y, z)
-        }
-
-        for y in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                if is_visible(chunk, x, y, z) && !visited[z + y * CHUNK_SIZE] {
-                    let mut w = 1;
-                    let mut d = 1;
-
-
-                    while z + w < CHUNK_SIZE && is_visible(chunk, x, y, z + w) && !visited[(z + w) + y * CHUNK_SIZE] {
-                        w += 1;
-                    }
-
-                    'outer: while y + d < CHUNK_SIZE {
-                        for i in 0..w {
-                            if chunk.is_air(x, y + d, z + i) || visited[(z + i) + (y + d) * CHUNK_SIZE] {
-                                break 'outer;
-                            }
-                        }
-                        d += 1;
-                    }
-
-                    for dx in 0..w {
-                        for dz in 0..d {
-                            visited[(z + dx) + (y + dz) * CHUNK_SIZE] = true;
-                        }
-                    }
-
-                    vertices.extend_from_slice(&*quad_vertices(x, y, z, w, d, 3));
-                    indices.extend_from_slice(&*generate_block_indices(index_offset));
-                    index_offset += 4;
+                    vertices.push(quad_vertex(x, y, z, w, d, 2));
                 }
             }
         }
     }
 
     // front
-    for z in 0..CHUNK_SIZE {
+    for z in 0..CS_I {
         let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
 
-        fn is_visible(chunk: &Chunk, x: usize, y: usize, z: usize) -> bool {
+        fn is_visible(chunk: &Chunk, x: isize, y: isize, z: isize) -> bool {
             !chunk.is_air(x, y, z) && chunk.is_air(x, y, z - 1)
         }
 
-        for y in 0..CHUNK_SIZE {
-            for x in 0..CHUNK_SIZE {
-                if is_visible(chunk, x, y, z) && !visited[x + y * CHUNK_SIZE] {
+        for y in 0..CS_I {
+            for x in 0..CS_I {
+                if is_visible(chunk, x, y, z) && !visited[(x + y * CS_I) as usize] {
                     let mut w = 1;
                     let mut d = 1;
 
 
-                    while z + w < CHUNK_SIZE && is_visible(chunk, x + w, y, z) && !visited[(x + w) + y * CHUNK_SIZE] {
+                    while z + w < CS_I && is_visible(chunk, x + w, y, z) && !visited[((x + w) + y * CS_I) as usize] {
                         w += 1;
                     }
 
-                    'outer: while y + d < CHUNK_SIZE {
+                    'outer: while y + d < CS_I {
                         for i in 0..w {
-                            if chunk.is_air(x + i, y + d, z) || visited[(x + i) + (y + d) * CHUNK_SIZE] {
+                            if chunk.is_air(x + i, y + d, z) || visited[((x + i) + (y + d) * CS_I) as usize] {
                                 break 'outer;
                             }
                         }
@@ -267,39 +206,37 @@ pub fn greedy_mesh(chunk: &mut Chunk) {
 
                     for dx in 0..w {
                         for dz in 0..d {
-                            visited[(x + dx) + (y + dz) * CHUNK_SIZE] = true;
+                            visited[((x + dx) + (y + dz) * CS_I) as usize] = true;
                         }
                     }
 
-                    vertices.extend_from_slice(&*quad_vertices(x, y, z, w, d, 0));
-                    indices.extend_from_slice(&*generate_block_indices(index_offset));
-                    index_offset += 4;
+                    vertices.push(quad_vertex(x, y, z, w, d, 0));
                 }
             }
         }
     }
 
     // back
-    for z in 0..CHUNK_SIZE {
+    for z in 0..CS_I {
         let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
 
-        fn is_visible(chunk: &Chunk, x: usize, y: usize, z: usize) -> bool {
+        fn is_visible(chunk: &Chunk, x: isize, y: isize, z: isize) -> bool {
             !chunk.is_air(x, y, z) && chunk.is_air(x, y, z + 1)
         }
 
-        for y in 0..CHUNK_SIZE {
-            for x in 0..CHUNK_SIZE {
-                if is_visible(chunk, x, y, z) && !visited[x + y * CHUNK_SIZE] {
+        for y in 0..CS_I {
+            for x in 0..CS_I {
+                if is_visible(chunk, x, y, z) && !visited[(x + y * CS_I) as usize] {
                     let mut w = 1;
                     let mut d = 1;
 
-                    while x + w < CHUNK_SIZE && is_visible(chunk, x + w, y, z) && !visited[(x + w) + y * CHUNK_SIZE] {
+                    while x + w < CS_I && is_visible(chunk, x + w, y, z) && !visited[((x + w) + y * CS_I) as usize] {
                         w += 1;
                     }
 
-                    'outer: while y + d < CHUNK_SIZE {
+                    'outer: while y + d < CS_I {
                         for i in 0..w {
-                            if chunk.is_air(x + i, y + d, z) || visited[(x + i) + (y + d) * CHUNK_SIZE] {
+                            if chunk.is_air(x + i, y + d, z) || visited[((x + i) + (y + d) * CS_I) as usize] {
                                 break 'outer;
                             }
                         }
@@ -308,96 +245,143 @@ pub fn greedy_mesh(chunk: &mut Chunk) {
 
                     for dx in 0..w {
                         for dz in 0..d {
-                            visited[(x + dx) + (y + dz) * CHUNK_SIZE] = true;
+                            visited[((x + dx) + (y + dz) * CS_I) as usize] = true;
                         }
                     }
 
-                    vertices.extend_from_slice(&*quad_vertices(x, y, z, w, d, 1));
-                    indices.extend_from_slice(&*generate_block_indices(index_offset));
-                    index_offset += 4;
+                    vertices.push(quad_vertex(x, y, z, w, d, 1));
                 }
             }
         }
     }
-    chunk.mesh = ChunkMesh::create(vertices, indices);
+
+    // top
+    for y in 0..CS_I {
+        let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
+
+        fn is_visible(chunk: &Chunk, x: isize, y: isize, z: isize) -> bool {
+            !chunk.is_air(x, y, z) && chunk.is_air(x, y + 1, z)
+        }
+
+        for x in 0..CS_I {
+            for z in 0..CS_I {
+                if is_visible(chunk, x, y, z) && !visited[(x + z * CS_I) as usize] {
+                    let mut w = 1;
+                    let mut d = 1;
+
+                    while x + w < CS_I && is_visible(chunk, x + w, y, z) && !visited[((x + w) + z * CS_I) as usize] {
+                        w += 1;
+                    }
+
+                    'outer: while z + d < CS_I {
+                        for i in 0..w {
+                            if chunk.is_air(x + i, y, z + d) || visited[((x + i) + (z + d) * CS_I) as usize] {
+                                break 'outer;
+                            }
+                        }
+                        d += 1;
+                    }
+                    for dx in 0..w {
+                        for dz in 0..d {
+                            visited[((x + dx) + (z + dz) * CS_I) as usize] = true;
+                        }
+                    }
+
+                    vertices.push(quad_vertex(x, y, z, w, d, 4));
+                }
+            }
+        }
+    }
+
+    // bottom
+    for y in 0..CS_I {
+        let mut visited = vec![false; CHUNK_SIZE * CHUNK_SIZE];
+
+        fn is_visible(chunk: &Chunk, x: isize, y: isize, z: isize) -> bool {
+            !chunk.is_air(x, y, z) && chunk.is_air(x, y - 1, z)
+        }
+
+        for x in 0..CS_I {
+            for z in 0..CS_I {
+                if is_visible(chunk, x, y, z) && !visited[(x + z * CS_I) as usize] {
+                    let mut w = 1;
+                    let mut d = 1;
+
+                    while x + w < CS_I && is_visible(chunk, x + w, y, z) && !visited[((x + w) + z * CS_I) as usize] {
+                        w += 1;
+                    }
+
+                    'outer: while z + d < CS_I {
+                        for i in 0..w {
+                            if chunk.is_air(x + i, y, z + d) || visited[((x + i) + (z + d) * CS_I) as usize] {
+                                break 'outer;
+                            }
+                        }
+                        d += 1;
+                    }
+                    for dx in 0..w {
+                        for dz in 0..d {
+                            visited[((x + dx) + (z + dz) * CS_I) as usize] = true;
+                        }
+                    }
+
+                    vertices.push(quad_vertex(x, y, z, w, d, 5));
+                }
+            }
+        }
+    }
+    chunk.mesh = ChunkMesh::create(vertices);
     println!("{}", Instant::duration_since(&Instant::now(), start).as_micros())
 }
 
-fn pack_data(x: u8, y: u8, z: u8, normal: u8, id: u8) -> i32 {
-    (x as i32) << 18 |
-    (y as i32) << 12 |
-    (z as i32) << 6 |
-    (normal as i32) << 3 |
-    (id as i32)
+fn pack_data(x: u8, y: u8, z: u8, width: u8, height: u8, normal: u8, texture_id: u8) -> u32 {
+    // Pack data into a 32-bit integer
+    (x as u32) |             // x (5 bits) -> bits 0-4
+    ((y as u32) << 5) |      // y (5 bits) -> bits 5-9
+    ((z as u32) << 10) |     // z (5 bits) -> bits 10-14
+    ((width as u32) << 15) | // width (5 bits) -> bits 15-19
+    ((height as u32) << 20) |// height (5 bits) -> bits 20-24
+    ((normal as u32) << 25) |// normal (3 bits) -> bits 25-27
+    ((texture_id as u32) << 28) // texture_id (4 bits) -> bits 28-31
 }
 
-fn quad_vertices(x: usize, y: usize, z: usize, w: usize, h: usize, normal: u8) -> Vec<i32> {
-    let (x, y, z, w, h) = (x as u8, y as u8, z as u8, w as u8, h as u8);
+fn pack_data_u64(x: u8, y: u8, z: u8, width: u8, height: u8, normal: u8, texture_id: u8) -> u64 {
+    (x as u64) |
+    ((y as u64) << 6) |
+    ((z as u64) << 12) |
+    ((width as u64) << 18) |
+    ((height as u64) << 24) |
+    ((normal as u64) << 30) |
+    ((texture_id as u64) << 33)
+}
 
 
+
+fn quad_vertex(x: isize, y: isize, z: isize, w: isize, h: isize, normal: u8) -> u64 {
+    let (mut x, mut y, mut z, w, h) = (x as u8, y as u8, z as u8, w as u8, h as u8);
     let texture_id: u8 = 0;
 
     match normal {
-        0 => vec![
-            pack_data(x, y + h, z, normal, texture_id),        // top-left
-            pack_data(x + w, y + h, z, normal, texture_id),    // top-right
-            pack_data(x + w, y, z, normal, texture_id),        // bottom-right
-            pack_data(x, y, z, normal, texture_id)             // bottom-left
-        ],
-        1 => vec![
-            pack_data(x, y, z + 1, normal, texture_id),            // bottom-left
-            pack_data(x + w, y, z + 1, normal, texture_id),        // bottom-right
-            pack_data(x + w, y + h, z + 1, normal, texture_id),    // top-right
-            pack_data(x, y + h, z + 1, normal, texture_id)         // top-left
-        ],
-        2 => vec![
-            pack_data(x, y, z + w, normal, texture_id),
-            pack_data(x, y + h, z + w, normal, texture_id),
-            pack_data(x, y + h, z, normal, texture_id),
-            pack_data(x, y, z, normal, texture_id),
-        ],
-        3 => vec![
-            pack_data(x + 1, y, z, 3, texture_id),
-            pack_data(x + 1, y + h, z, 3, texture_id),
-            pack_data(x + 1, y + h, z + w, 3, texture_id),
-            pack_data(x + 1, y, z + w, 3, texture_id),
-        ],
-        4 => vec![
-            pack_data(x, y + 1, z, normal, texture_id),
-            pack_data(x, y + 1, z + h, normal, texture_id),
-            pack_data(x + w, y + 1, z + h, normal, texture_id),
-            pack_data(x + w, y + 1, z, normal, texture_id),
-        ],
-        _ => vec![
-            pack_data(x, y, z, normal, texture_id),              // bottom-left
-            pack_data(x + w, y, z, normal, texture_id),          // bottom-right
-            pack_data(x + w, y, z + h, normal, texture_id),      // top-right
-            pack_data(x, y, z + h, normal, texture_id),          // top-left
-        ]
+        1 => {
+            x += w;
+            z += 1;
+        }
+        2 => {
+            z += w;
+        }
+        3 => {
+            x += 1;
+        }
+        4 => {
+            y += 1;
+        }
+        5 => {
+            x += w;
+        }
+        _ => {}
     }
-}
 
-/*
-    match face {
-        Face::Left => vec![
-            pack(x, y, z + 1, 2),
-            pack(x, y + 1, z + 1, 2),
-            pack(x, y + 1, z, 2),
-            pack(x, y, z, 2),
-        ],
-        Face::Right => vec![
-            pack(x + 1, y, z, 3),
-            pack(x + 1, y + 1, z, 3),
-            pack(x + 1, y + 1, z + 1, 3),
-            pack(x + 1, y, z + 1, 3),
-        ],
-    }
-*/
-
-#[inline]
-fn generate_block_indices(offset: u32) -> Vec<u32> {
-    vec![
-        offset, offset + 1, offset + 2, // First triangle
-        offset, offset + 2, offset + 3,
-    ]
+    let data = pack_data_u64(x, y, z, w, h, normal, texture_id);
+    // println!("before: {:?}, packed: {}, unpacked: {:?}", (x, y, z, w, h, normal, texture_id), data, unpack_data(data));
+    data
 }

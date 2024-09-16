@@ -1,9 +1,9 @@
 extern crate glfw;
 
 use std::time::Instant;
+
 use fastnoise_lite::{FastNoiseLite, NoiseType};
 use gl::{DEPTH_TEST, TEXTURE_2D_ARRAY};
-
 use glfw::{Action, Context, GlfwReceiver, Key, Window, WindowEvent};
 use ultraviolet::{Mat4, Vec3};
 use ultraviolet::projection::perspective_gl;
@@ -12,7 +12,7 @@ use crate::render::camera::Camera;
 use crate::render::camera::CameraMovement::{BACKWARD, DOWN, FORWARD, LEFT, RIGHT, UP};
 use crate::render::shaders::Shader;
 use crate::render::textures::texture_array::TextureArray;
-use crate::world::chunk::chunk::{CHUNK_SIZE};
+use crate::world::chunk::chunk::CHUNK_SIZE;
 use crate::world::world::{make_example_chunks, World};
 
 mod render;
@@ -22,10 +22,10 @@ fn main() {
     use glfw::fail_on_errors;
     let mut glfw = glfw::init(fail_on_errors!()).unwrap();
 
-    glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
+    glfw.window_hint(glfw::WindowHint::ContextVersion(4, 3));
     glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
     // #[cfg(target_os = "macos")]
-    glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
+    // glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
 
     let (mut window, events) = glfw.create_window(1920, 1080, "Window", glfw::WindowMode::Windowed).expect("Failed to create");
 
@@ -37,6 +37,15 @@ fn main() {
 
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
+    let version = unsafe {
+        let mut major = 0;
+        let mut minor = 0;
+        gl::GetIntegerv(gl::MAJOR_VERSION, &mut major);
+        gl::GetIntegerv(gl::MINOR_VERSION, &mut minor);
+        format!("OpenGL version: {}.{}", major, minor)
+    };
+    println!("{}", version);
+
     // uncaps fps
     glfw.set_swap_interval(glfw::SwapInterval::None);
 
@@ -46,6 +55,8 @@ fn main() {
     let mut first_mouse = true;
     let mut last_x: f32 = 1920.0 / 2.0;
     let mut last_y: f32 = 1080.0 / 2.0;
+
+    let mut wireframe = false;
 
     let mut delta_time: f32;
     let mut last_frame: f32 = 0.0;
@@ -81,8 +92,6 @@ fn main() {
         gl::Enable(gl::CULL_FACE);
         gl::CullFace(gl::BACK);
         gl::FrontFace(gl::CCW);
-
-        gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
     }
 
     // fps metrics
@@ -106,7 +115,7 @@ fn main() {
         // input
 
         process_input(&mut window, &mut camera, delta_time);
-        process_events(&events, &mut first_mouse, &mut last_x, &mut last_y, &mut camera);
+        process_events(&events, &mut first_mouse, &mut last_x, &mut last_y, &mut camera, &mut wireframe);
 
 
         // render
@@ -169,13 +178,23 @@ pub fn process_events(
     first_mouse: &mut bool,
     last_x: &mut f32,
     last_y: &mut f32,
-    camera: &mut Camera
+    camera: &mut Camera,
+    wireframe: &mut bool,
 ) {
     for (_, event) in glfw::flush_messages(events) {
         match event {
             WindowEvent::FramebufferSize(width, height) => {
                 unsafe {
                     gl::Viewport(0, 0, width, height)
+                }
+            }
+            WindowEvent::Key(Key::R, _, Action::Press, _) => unsafe {
+                if wireframe == &true {
+                    *wireframe = false;
+                    gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+                } else {
+                    *wireframe = true;
+                    gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
                 }
             }
             WindowEvent::CursorPos(x, y) => {

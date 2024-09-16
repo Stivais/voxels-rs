@@ -21,7 +21,7 @@ impl World {
     }
 }
 
-const CHUNK_AMOUNT: i32 = 64; // multiples by 2
+const CHUNK_AMOUNT: i32 = 32; // multiples by 2
 
 // todo: multi threaded
 pub fn make_example_chunks(world: &mut World, noise: &FastNoiseLite) {
@@ -44,7 +44,7 @@ fn generate_chunk_noise(chunk_x: i32, chunk_z: i32, noise: &FastNoiseLite) -> Ch
         for z in 0..cs {
             let height = (noise.get_noise_2d((chunk_x + x) as f32, (chunk_z + z) as f32) + 1.0) / 2.0;
             // let y = 0;// (height * 32.0) as i32;
-            for y in 0..(height * 32.0) as i32 {
+            for y in 0..(height * cs as f32) as i32 {
                 let index = (x + y * cs + z * cs * cs) as usize;
 
                 let block_type: BlockType;
