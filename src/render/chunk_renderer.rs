@@ -138,7 +138,7 @@ impl ChunkRenderer {
                         }
                     }
                     5 => {
-                        if (camera.position.z / CS_F32).floor() >= world_pos.z {
+                        if (camera.position.z / CS_F32).floor() >= pos.z {
                             self.draw_commands.push(command.clone());
                         }
                     }
