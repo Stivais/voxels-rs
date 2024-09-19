@@ -1,6 +1,5 @@
-#version 430 core
+#version 460 core
 #extension GL_ARB_gpu_shader_int64 : enable
-
 
 layout(binding = 0, std430) readonly buffer ssbo1 {
     uint64_t data[];
@@ -9,85 +8,75 @@ layout(binding = 0, std430) readonly buffer ssbo1 {
 out vec3 TexCoord;
 out vec3 color;
 
-uniform vec3 worldPosition;
-uniform mat4 view;
-uniform mat4 projection;
+//uniform mat4 view;
+//uniform mat4 projection;
+uniform mat4 view_projection;
 
-const int flipLookup[6] = int[6](1, -1, 1, -1, 1, -1);
+const vec3 colorLookup[6] = {
+    vec3(1.0, 0.0, 1.0),
+    vec3(0.0, 0.0, 0.0),
+    vec3(1.0, 1.0, 0.0),
+    vec3(0.0, 0.0, 1.0),
+    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 1.0, 0.0)
+};
 
-const int width_multipler[3] = int[3](38, 34, 52);
-const int height_multplier[2] = int[2](28, 13);
-
-const ivec2 test[2] = ivec2[2](
-    ivec2(22, 11),
-    ivec2(26, 52)
-);
-
-const vec2 facePositions[4] = vec2[4]
-(
-    vec2(0, 1),
-    vec2(1, 0),
-    vec2(1, 1),
-    vec2(0, 0)
-);
-
-// Winding order to access the face positions
-int indices[6] = int[6](0, 2, 1, 1, 3, 0);
+const int flipLookup[6] = int[6](1, -1, 1, 1, -1, 1);
 
 void main()
 {
-    int index = gl_VertexID / 6;
+    ivec3 chunkOffset = (ivec3(gl_BaseInstance&255u, gl_BaseInstance>>10&255u, gl_BaseInstance>>20&255u)) * 32;
+
+    int vertexID = gl_VertexID % 4;
+    int index = gl_VertexID >> 2u;
+
     uint64_t packedData = data[index];
-    int currVertexID = gl_VertexID % 6;
 
-    uint x = uint((packedData) & 0x3F);
-    uint y = uint((packedData >> 6) & 0x3F);
-    uint z = uint((packedData >> 12) & 0x3F);
+    uint face = uint((packedData >> 30) & 0x07);
 
-    int width = int((packedData >> 18) & 0x3F);
-    int height = int((packedData >> 24) & 0x3F);
+    ivec3 vertexPos = ivec3(packedData, packedData >> 6u, packedData >> 12u) & 63;
 
-    uint normal = uint((packedData >> 30) & 0x07);
+    int w = int((packedData >> 18u) & 63u), h = int((packedData >> 24u) & 63u);
+    uint wDir = (face & 2) >> 1, hDir = 2 - (face >> 2);
+    int wMod = vertexID >> 1, hMod = vertexID & 1;
+
+    vertexPos[wDir] += (w * wMod * flipLookup[face]);
+    vertexPos[hDir] += (h * hMod);
+
+    vec3 position = vec3((vertexPos += chunkOffset));
+    position[wDir] += 0.0007 * flipLookup[face] * (wMod * 2 - 1);
+    position[hDir] += 0.0007 * (hMod * 2 - 1);
+
     uint textureID = uint((packedData >> 33) & 0x0F);
 
-    // fastest way I could think of
-    int w_multi = (test[currVertexID % 2].x >> currVertexID) & 1;
-    int h_multi = (test[0].y >> currVertexID) & 1;
+    color = colorLookup[face];
+    // todo: figure out a way to get texCoord with switch statement
+//    switch (face) {
+//        case 0: // Top / 0 b4 4
+//            TexCoord = vec3(position.xz, float(textureID));
+//            color = vec3(1.0, 0.0, 1.0); // magenta
+//            break;
+//        case 1: // Bottom (Black) 1 b4 5
+//            TexCoord = vec3(position.xz, float(textureID));
+//            color = vec3(0.0, 0.0, 0.0);
+//            break;
+//        case 2: // Right / 2 b4 3
+//            TexCoord = vec3(position.zy, float(textureID));
+//            color = vec3(1.0, 1.0, 0.0); // yellow
+//            break;
+//        case 3: // Left / 3 b4 2
+//            TexCoord = vec3(position.zy, float(textureID));
+//            color = vec3(0.0, 0.0, 1.0); // blue
+//            break;
+//        case 4: // Front / 4 b4 0
+//            TexCoord = vec3(position.xy, float(textureID));
+//            color = vec3(1.0, 0.0, 0.0); // red
+//            break;
+//        case 5: // Back / 5 b4 1
+//            TexCoord = vec3(position.xy, float(textureID));
+//            color = vec3(0.0, 1.0, 0.0); // green
+//            break;
+//    }
 
-    vec3 position = vec3(x, y, z);
-
-    switch (normal) {
-        case 0: // Front
-            position.xy += (facePositions[indices[currVertexID]] * vec2(width, height));
-            TexCoord = vec3(position.xy, float(textureID));
-            color = vec3(1.0, 0.0, 0.0); // red
-            break;
-        case 1: // Back
-            position.xy += (facePositions[indices[currVertexID]] * vec2(width * -1, height));
-            TexCoord = vec3(position.xy, float(textureID));
-            color = vec3(0.0, 1.0, 0.0); // green
-            break;
-        case 2: // Left
-            position.zy += (facePositions[indices[currVertexID]] * vec2(width * -1, height));
-            TexCoord = vec3(position.zy, float(textureID));
-            color = vec3(0.0, 0.0, 1.0); // blue
-            break;
-        case 3: // Right
-            position.zy += (facePositions[indices[currVertexID]] * vec2(width, height));
-            TexCoord = vec3(position.zy, float(textureID));
-            color = vec3(1.0, 1.0, 0.0); // yellow
-            break;
-        case 4: // Top
-            position.xz += (facePositions[indices[currVertexID]] * vec2(width, height));
-            TexCoord = vec3(position.xz, float(textureID));
-            color = vec3(1.0, 0.0, 1.0); // magenta
-            break;
-        case 5: // Bottom
-            position.xz += (facePositions[indices[currVertexID]] * vec2(width * -1, height));
-            TexCoord = vec3(position.xz, float(textureID));
-            color = vec3(0.0, 0.0, 0.0); // black
-            break;
-    }
-
-    gl_Position = projection * view * vec4(worldPosition + position, 1.0);
+    gl_Position = view_projection * vec4(position, 1.0);
 }

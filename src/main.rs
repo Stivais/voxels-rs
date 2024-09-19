@@ -1,18 +1,22 @@
 extern crate glfw;
 
+use std::cmp::PartialEq;
 use std::time::Instant;
 
 use fastnoise_lite::{FastNoiseLite, NoiseType};
 use gl::{DEPTH_TEST, TEXTURE_2D_ARRAY};
 use glfw::{Action, Context, GlfwReceiver, Key, Window, WindowEvent};
-use ultraviolet::{Mat4, Vec3};
+use ultraviolet::{Vec3};
 use ultraviolet::projection::perspective_gl;
 
 use crate::render::camera::Camera;
 use crate::render::camera::CameraMovement::{BACKWARD, DOWN, FORWARD, LEFT, RIGHT, UP};
+use crate::render::chunk_renderer::{ChunkRenderer, DrawElementsIndirectCommand};
+use crate::render::frustum::{Frustum};
 use crate::render::shaders::Shader;
 use crate::render::textures::texture_array::TextureArray;
-use crate::world::chunk::chunk::CHUNK_SIZE;
+use crate::world::chunk::chunk::{CS_F32};
+use crate::world::chunk::mesh::greedy_mesh;
 use crate::world::world::{make_example_chunks, World};
 
 mod render;
@@ -71,6 +75,24 @@ fn main() {
     let mut world = World::new();
     make_example_chunks(&mut world, &noise);
 
+    let mut chunk_renderer = unsafe { ChunkRenderer::create() };
+
+    unsafe {
+        for (pos, mut chunk) in &mut world.chunks {
+            let mut index = 0;
+            for vertices in greedy_mesh(&chunk) {
+                if vertices.len() == 0 { continue; };
+                // NOTE: Might be issue with negative numbers
+                let base_instance = (pos.x) | (pos.y << 10) | (pos.z << 20);
+                let command = chunk_renderer.get_draw_command(vertices.len() as u32, base_instance as u32);
+
+                chunk_renderer.upload_mesh(&command, vertices);
+                chunk.add_draw_command(command);
+                index += 1;
+            }
+        }
+    }
+
     let shader = Shader::new(
         "resources/shader.vert",
         "resources/shader.frag",
@@ -88,15 +110,15 @@ fn main() {
     unsafe {
         gl::Enable(DEPTH_TEST);
         gl::DepthFunc(gl::LESS);
-
-        gl::Enable(gl::CULL_FACE);
-        gl::CullFace(gl::BACK);
-        gl::FrontFace(gl::CCW);
     }
+
+    let mut draw_commands: Vec<DrawElementsIndirectCommand> = Vec::new();
 
     // fps metrics
     let mut last_update = Instant::now();
     let mut frame_count = 0;
+    let mut chunk_count = 0;
+    let mut visible_chunks = 0;
 
     while !window.should_close() {
         let now = Instant::now();
@@ -104,9 +126,11 @@ fn main() {
 
         if now.duration_since(last_update).as_secs_f32() >= 1.0 {
             last_update = now;
-            window.set_title(&format!("FPS: {}", frame_count));
+            window.set_title(&format!("FPS: {}, Chunks: {}, Visible Chunks: {}", frame_count, chunk_count, visible_chunks));
             frame_count = 0
         }
+        chunk_count = 0;
+        visible_chunks = 0;
 
         let current_frame = glfw.get_time() as f32;
         delta_time = current_frame - last_frame;
@@ -130,18 +154,80 @@ fn main() {
 
             shader.set_int("textureArray", 0);
 
-            let projection: Mat4 = perspective_gl(45.0f32.to_radians(), 1920.0 / 1080.0, 0.1, 10000.0);
-            shader.set_mat4("projection", &projection);
-            let view: Mat4 = camera.view_matrix();
-            shader.set_mat4("view", &view);
+            let view_projection = perspective_gl(45.0f32.to_radians(), 1920.0 / 1080.0, 0.1, 10000.0) * camera.view_matrix();
+            shader.set_mat4("view_projection", &view_projection);
+            let frustum = Frustum::from_matrix(&view_projection); // Frustum::create(&view_projection);//create_frustum_from_camera(&camera, 1920.0 / 1080.0, 45.0f32.to_radians(),0.1, 10000.0);
 
+            let ref cam_pos = camera.position;
 
             for (pos, chunk) in &world.chunks {
-                const SIZE: i32 = CHUNK_SIZE as i32;
-                let world_positon = Vec3::new((pos.x * SIZE) as f32, (pos.y * SIZE) as f32, (pos.z * SIZE) as f32);
-                shader.set_vec3("worldPosition", &world_positon);
-                chunk.mesh.draw();
+
+                chunk_count += 1;
+
+                let (chunk_x, chunk_y, chunk_z) = (pos.x as f32 * CS_F32, pos.y as f32 * CS_F32, pos.z as f32 * CS_F32);
+
+                if !frustum.test_aabb(
+                    Vec3::new(chunk_x, chunk_y, chunk_z),
+                    Vec3::new(chunk_x + CS_F32, chunk_y + CS_F32, chunk_z + CS_F32),
+                ) {
+                    continue;
+                }
+                visible_chunks += 1;
+
+                let mut index = 0;
+
+                for command in &chunk.draw_commands {
+                    match index {
+                        0 => {
+                            if (cam_pos.y / CS_F32).floor() >= pos.y as f32 {
+                                draw_commands.push(command.clone());
+                            }
+                        }
+                        1 => {
+                            if (cam_pos.y / CS_F32).floor() <= pos.y as f32 {
+                                draw_commands.push(command.clone());
+                            }
+                        }
+                        2 => {
+                            if (cam_pos.x / CS_F32).floor() >= pos.x as f32 {
+                                draw_commands.push(command.clone());
+                            }
+                        }
+                        3 => {
+                            if (cam_pos.x / CS_F32).floor() <= pos.x as f32 {
+                                draw_commands.push(command.clone());
+                            }
+                        }
+                        4 => {
+                            if (cam_pos.z / CS_F32).floor() <= pos.z as f32 {
+                                draw_commands.push(command.clone());
+                            }
+                        }
+                        _ => {
+                            if (cam_pos.z / CS_F32).floor() >= pos.z as f32 {
+                                draw_commands.push(command.clone());
+                            }
+                        }
+                    }
+                    index += 1;
+                }
             }
+
+            chunk_renderer.render(&draw_commands, &shader, &camera);
+            draw_commands.clear()
+
+            // let projection: Mat4 = perspective_gl(45.0f32.to_radians(), 1920.0 / 1080.0, 0.1, 10000.0);
+            // shader.set_mat4("projection", &projection);
+            // let view: Mat4 = camera.view_matrix();
+            // shader.set_mat4("view", &view);CA
+            //
+            //
+            // for (pos, chunk) in &world.chunks {
+            //     const SIZE: i32 = CHUNK_SIZE as i32;
+            //     let world_positon = Vec3::new((pos.x * SIZE) as f32, (pos.y * SIZE) as f32, (pos.z * SIZE) as f32);
+            //     shader.set_vec3("worldPosition", &world_positon);
+            //     chunk.mesh.draw();
+            // }
         }
 
         window.swap_buffers();

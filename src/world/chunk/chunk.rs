@@ -1,21 +1,27 @@
 use std::cmp::PartialEq;
-use crate::world::chunk::mesh::ChunkMesh;
+use crate::render::chunk_renderer::DrawElementsIndirectCommand;
 
 /// Default chunk size
-pub const CHUNK_SIZE: usize = 48;
-pub const CS_I: isize = CHUNK_SIZE as isize;
+pub const CHUNK_SIZE: usize = 32;
+pub const CS_I: isize = CHUNK_SIZE as isize; // delete i thought I needded it but nvm
+pub const CS_I32: i32 = CHUNK_SIZE as i32;
+pub const CS_F32: f32 = CHUNK_SIZE as f32;
 
 pub struct Chunk {
     pub blocks: Vec<Block>,
-    pub mesh: ChunkMesh,
+    pub draw_commands: Vec<DrawElementsIndirectCommand>
 }
 
 impl Chunk {
     pub fn create(blocks: Vec<Block>) -> Chunk {
         Chunk {
             blocks,
-            mesh: ChunkMesh::empty(),
+            draw_commands: Vec::with_capacity(6),
         }
+    }
+
+    pub fn add_draw_command(&mut self, draw_command: DrawElementsIndirectCommand) {
+        self.draw_commands.push(draw_command)
     }
 
     pub fn get_block_at(&self, x: isize, y: isize, z: isize) -> Option<&Block> {

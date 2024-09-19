@@ -16,10 +16,10 @@ pub struct Camera {
     pub position: Vec3,
     pub yaw: f32,
     pub pitch: f32,
-    front: Vec3,
-    up: Vec3,
-    right: Vec3,
-    world_up: Vec3,
+    pub front: Vec3,
+    pub up: Vec3,
+    pub right: Vec3,
+    pub world_up: Vec3,
 }
 
 impl Camera {
@@ -54,7 +54,7 @@ impl Camera {
     }
 
     pub fn process_keyboard(&mut self, direction: CameraMovement, delta_time: f32) {
-        let velocity = 15.0 * delta_time;
+        let velocity = 50.0 * delta_time;
         if direction == FORWARD {
             self.position += self.front * velocity;
         }
