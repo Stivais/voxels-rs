@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::path::Iter;
 use std::ptr;
 use gl::{DRAW_INDIRECT_BUFFER, DYNAMIC_DRAW, DYNAMIC_STORAGE_BIT, ELEMENT_ARRAY_BUFFER, SHADER_STORAGE_BUFFER, TEXTURE_2D_ARRAY, TRIANGLES, UNSIGNED_INT};
 use gl::types::{GLintptr, GLsizei, GLsizeiptr};
@@ -11,7 +10,6 @@ use crate::render::frustum::Frustum;
 use crate::render::shaders::Shader;
 use crate::render::textures::texture_array::TextureArray;
 use crate::world::chunk::chunk::{Chunk, CHUNK_SIZE, ChunkPosition, CS_F32};
-use crate::world::world::World;
 
 const BUFFER_SIZE: u32 = 500_000_000;
 const MAX_DRAW_COMMANDS: usize = 100_000;
