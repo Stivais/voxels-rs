@@ -1,10 +1,17 @@
+use std::collections::HashMap;
 use std::ffi::c_void;
+use std::path::Iter;
 use std::ptr;
-use gl::{DRAW_INDIRECT_BUFFER, DYNAMIC_DRAW, DYNAMIC_STORAGE_BIT, ELEMENT_ARRAY_BUFFER, SHADER_STORAGE_BUFFER, TRIANGLES, UNSIGNED_INT};
+use gl::{DRAW_INDIRECT_BUFFER, DYNAMIC_DRAW, DYNAMIC_STORAGE_BIT, ELEMENT_ARRAY_BUFFER, SHADER_STORAGE_BUFFER, TEXTURE_2D_ARRAY, TRIANGLES, UNSIGNED_INT};
 use gl::types::{GLintptr, GLsizei, GLsizeiptr};
+use ultraviolet::projection::perspective_gl;
+use ultraviolet::Vec3;
 use crate::render::camera::Camera;
+use crate::render::frustum::Frustum;
 use crate::render::shaders::Shader;
-use crate::world::chunk::chunk::CHUNK_SIZE;
+use crate::render::textures::texture_array::TextureArray;
+use crate::world::chunk::chunk::{Chunk, CHUNK_SIZE, ChunkPosition, CS_F32};
+use crate::world::world::World;
 
 const BUFFER_SIZE: u32 = 500_000_000;
 const MAX_DRAW_COMMANDS: usize = 100_000;
@@ -31,13 +38,17 @@ pub struct ChunkRenderer {
     ibo: u32,
     ssbo: u32,
     command_buffer: u32,
+
     allocation_end: u32,
     used_slots: Vec<BufferSlot>,
-    draw_commands: Vec<DrawElementsIndirectCommand>
+    draw_commands: Vec<DrawElementsIndirectCommand>,
+
+    shader: Shader,
+    texture_array: TextureArray,
 }
 
 impl ChunkRenderer {
-    pub unsafe fn create() -> ChunkRenderer {
+    pub unsafe fn create(shader: Shader, texture_array: TextureArray) -> ChunkRenderer {
         let mut renderer = ChunkRenderer {
             vao: 0,
             ibo: 0,
@@ -45,7 +56,9 @@ impl ChunkRenderer {
             command_buffer: 0,
             allocation_end: 0,
             used_slots: vec![],
-            draw_commands: vec![]
+            draw_commands: vec![],
+            shader,
+            texture_array
         };
 
         gl::GenVertexArrays(1, &mut renderer.vao);
@@ -80,25 +93,74 @@ impl ChunkRenderer {
         renderer
     }
 
-    pub unsafe fn render(&self, draw_commands: &Vec<DrawElementsIndirectCommand>, shader: &Shader, camera: &Camera) {
-        let command_amount = draw_commands.len();
+    pub unsafe fn render_new(&mut self, chunks: &HashMap<ChunkPosition, Chunk>, camera: &Camera) {
+        self.shader.use_program();
+        self.texture_array.bind(TEXTURE_2D_ARRAY);
+        self.shader.set_int("textureArray", 0);
+
+        let view_projection = perspective_gl(45f32.to_radians(), 1920.0 / 1080.0, 0.1, 10000.0) * camera.view_matrix();
+        self.shader.set_mat4("view_projection", &view_projection);
+        let frustum = Frustum::create(view_projection);
+
+        for (pos, chunk) in chunks {
+            let pos = pos.to_vec3();
+            let world_pos = pos * CS_F32;
+
+            // todo: gpu frustum and occlusion culling
+            if !frustum.test_aabb(world_pos, world_pos + Vec3::broadcast(CS_F32)) {
+                continue;
+            }
+
+            let mut index = 0;
+            for command in &chunk.draw_commands {
+                match index {
+                    0 => {
+                        if (camera.position.y / CS_F32).floor() >= pos.y {
+                            self.draw_commands.push(command.clone());
+                        }
+                    }
+                    1 => {
+                        if (camera.position.y / CS_F32).floor() <= pos.y {
+                            self.draw_commands.push(command.clone());
+                        }
+                    }
+                    2 => {
+                        if (camera.position.x / CS_F32).floor() >= pos.x {
+                            self.draw_commands.push(command.clone());
+                        }
+                    }
+                    3 => {
+                        if (camera.position.x / CS_F32).floor() <= pos.x {
+                            self.draw_commands.push(command.clone());
+                        }
+                    }
+                    4 => {
+                        if (camera.position.z / CS_F32).floor() <= pos.z {
+                            self.draw_commands.push(command.clone());
+                        }
+                    }
+                    5 => {
+                        if (camera.position.z / CS_F32).floor() >= world_pos.z {
+                            self.draw_commands.push(command.clone());
+                        }
+                    }
+                    _ => {}
+                }
+                index += 1;
+            }
+        }
+
+        let command_amount = self.draw_commands.len();
 
         if command_amount == 0 {
             return;
         }
 
-        // shader.use_program();
-
-        // let projection: Mat4 = perspective_gl(45.0f32.to_radians(), 1920.0 / 1080.0, 0.1, 10000.0);
-        // shader.set_mat4("projection", &projection);
-        // let view: Mat4 = camera.view_matrix();
-        // shader.set_mat4("view", &view);
-
         gl::BindVertexArray(self.vao);
 
         gl::BindBuffer(DRAW_INDIRECT_BUFFER, self.command_buffer);
         let size = (command_amount * size_of::<DrawElementsIndirectCommand>()) as GLsizeiptr;
-        let data = draw_commands.as_ptr() as *const c_void;
+        let data = self.draw_commands.as_ptr() as *const c_void;
         gl::BufferData(DRAW_INDIRECT_BUFFER, size, data, DYNAMIC_DRAW);
 
         gl::BindVertexArray(self.vao);
@@ -117,6 +179,8 @@ impl ChunkRenderer {
         gl::BindBuffer(ELEMENT_ARRAY_BUFFER, 0);
         gl::BindBuffer(DRAW_INDIRECT_BUFFER, 0);
         gl::BindVertexArray(0);
+
+        self.draw_commands.clear()
     }
 
     pub unsafe fn get_draw_command(&mut self, quad_count: u32, base_instance: u32) -> DrawElementsIndirectCommand {

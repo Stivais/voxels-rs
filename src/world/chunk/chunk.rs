@@ -1,4 +1,5 @@
 use std::cmp::PartialEq;
+use ultraviolet::Vec3;
 use crate::render::chunk_renderer::DrawElementsIndirectCommand;
 
 /// Default chunk size
@@ -43,11 +44,26 @@ impl Chunk {
     }
 }
 
+#[repr(C)]
 #[derive(Hash, Eq, PartialEq)]
 pub struct ChunkPosition {
     pub x: i32,
     pub y: i32,
     pub z: i32,
+}
+
+impl ChunkPosition {
+    pub fn to_vec3(&self) -> Vec3 {
+        Vec3::new(
+            self.x as f32,
+            self.y as f32,
+            self.z as f32,
+        )
+    }
+
+    pub fn world_pos(&self) -> Vec3 {
+        self.to_vec3() * CS_F32
+    }
 }
 
 #[derive(Copy, Clone)]

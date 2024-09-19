@@ -4,18 +4,15 @@ use std::cmp::PartialEq;
 use std::time::Instant;
 
 use fastnoise_lite::{FastNoiseLite, NoiseType};
-use gl::{DEPTH_TEST, TEXTURE_2D_ARRAY};
+use gl::{DEPTH_TEST};
 use glfw::{Action, Context, GlfwReceiver, Key, Window, WindowEvent};
 use ultraviolet::{Vec3};
-use ultraviolet::projection::perspective_gl;
 
 use crate::render::camera::Camera;
 use crate::render::camera::CameraMovement::{BACKWARD, DOWN, FORWARD, LEFT, RIGHT, UP};
-use crate::render::chunk_renderer::{ChunkRenderer, DrawElementsIndirectCommand};
-use crate::render::frustum::{Frustum};
+use crate::render::chunk_renderer::{ChunkRenderer};
 use crate::render::shaders::Shader;
 use crate::render::textures::texture_array::TextureArray;
-use crate::world::chunk::chunk::{CS_F32};
 use crate::world::chunk::mesh::greedy_mesh;
 use crate::world::world::{make_example_chunks, World};
 
@@ -40,15 +37,15 @@ fn main() {
     window.set_cursor_mode(glfw::CursorMode::Disabled);
 
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
-
-    let version = unsafe {
-        let mut major = 0;
-        let mut minor = 0;
-        gl::GetIntegerv(gl::MAJOR_VERSION, &mut major);
-        gl::GetIntegerv(gl::MINOR_VERSION, &mut minor);
-        format!("OpenGL version: {}.{}", major, minor)
-    };
-    println!("{}", version);
+    println!("{}",
+         unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            gl::GetIntegerv(gl::MAJOR_VERSION, &mut major);
+            gl::GetIntegerv(gl::MINOR_VERSION, &mut minor);
+            format!("OpenGL version: {}.{}", major, minor)
+        }
+    );
 
     // uncaps fps
     glfw.set_swap_interval(glfw::SwapInterval::None);
@@ -65,17 +62,31 @@ fn main() {
     let mut delta_time: f32;
     let mut last_frame: f32 = 0.0;
 
+    let mut world = World::new();
 
     let noise = {
         let mut noise = FastNoiseLite::with_seed(8008135);
         noise.set_noise_type(Some(NoiseType::Perlin)); // No need to wrap in Some if unnecessary
         noise
     };
-
-    let mut world = World::new();
     make_example_chunks(&mut world, &noise);
 
-    let mut chunk_renderer = unsafe { ChunkRenderer::create() };
+    let mut chunk_renderer = unsafe {
+        ChunkRenderer::create(
+            Shader::new(
+                "resources/shader.vert",
+                "resources/shader.frag",
+            ),
+            TextureArray::create(
+                vec![
+                    "resources/textures/dirt.png",
+                    "resources/textures/cobblestone.png",
+                ],
+                16,
+                16,
+            ),
+        )
+    };
 
     unsafe {
         for (pos, mut chunk) in &mut world.chunks {
@@ -93,32 +104,14 @@ fn main() {
         }
     }
 
-    let shader = Shader::new(
-        "resources/shader.vert",
-        "resources/shader.frag",
-    );
-
-    let texture_array = TextureArray::create(
-        vec![
-            "resources/textures/dirt.png",
-            "resources/textures/cobblestone.png",
-        ],
-        16,
-        16,
-    );
-
     unsafe {
         gl::Enable(DEPTH_TEST);
         gl::DepthFunc(gl::LESS);
     }
 
-    let mut draw_commands: Vec<DrawElementsIndirectCommand> = Vec::new();
-
     // fps metrics
     let mut last_update = Instant::now();
     let mut frame_count = 0;
-    let mut chunk_count = 0;
-    let mut visible_chunks = 0;
 
     while !window.should_close() {
         let now = Instant::now();
@@ -126,11 +119,9 @@ fn main() {
 
         if now.duration_since(last_update).as_secs_f32() >= 1.0 {
             last_update = now;
-            window.set_title(&format!("FPS: {}, Chunks: {}, Visible Chunks: {}", frame_count, chunk_count, visible_chunks));
+            window.set_title(&format!("FPS: {}, press r for wireframe", frame_count));
             frame_count = 0
         }
-        chunk_count = 0;
-        visible_chunks = 0;
 
         let current_frame = glfw.get_time() as f32;
         delta_time = current_frame - last_frame;
@@ -148,86 +139,7 @@ fn main() {
             gl::ClearColor(0.0, 2.0, 1.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            shader.use_program();
-
-            texture_array.bind(TEXTURE_2D_ARRAY);
-
-            shader.set_int("textureArray", 0);
-
-            let view_projection = perspective_gl(45.0f32.to_radians(), 1920.0 / 1080.0, 0.1, 10000.0) * camera.view_matrix();
-            shader.set_mat4("view_projection", &view_projection);
-            let frustum = Frustum::from_matrix(&view_projection); // Frustum::create(&view_projection);//create_frustum_from_camera(&camera, 1920.0 / 1080.0, 45.0f32.to_radians(),0.1, 10000.0);
-
-            let ref cam_pos = camera.position;
-
-            for (pos, chunk) in &world.chunks {
-
-                chunk_count += 1;
-
-                let (chunk_x, chunk_y, chunk_z) = (pos.x as f32 * CS_F32, pos.y as f32 * CS_F32, pos.z as f32 * CS_F32);
-
-                if !frustum.test_aabb(
-                    Vec3::new(chunk_x, chunk_y, chunk_z),
-                    Vec3::new(chunk_x + CS_F32, chunk_y + CS_F32, chunk_z + CS_F32),
-                ) {
-                    continue;
-                }
-                visible_chunks += 1;
-
-                let mut index = 0;
-
-                for command in &chunk.draw_commands {
-                    match index {
-                        0 => {
-                            if (cam_pos.y / CS_F32).floor() >= pos.y as f32 {
-                                draw_commands.push(command.clone());
-                            }
-                        }
-                        1 => {
-                            if (cam_pos.y / CS_F32).floor() <= pos.y as f32 {
-                                draw_commands.push(command.clone());
-                            }
-                        }
-                        2 => {
-                            if (cam_pos.x / CS_F32).floor() >= pos.x as f32 {
-                                draw_commands.push(command.clone());
-                            }
-                        }
-                        3 => {
-                            if (cam_pos.x / CS_F32).floor() <= pos.x as f32 {
-                                draw_commands.push(command.clone());
-                            }
-                        }
-                        4 => {
-                            if (cam_pos.z / CS_F32).floor() <= pos.z as f32 {
-                                draw_commands.push(command.clone());
-                            }
-                        }
-                        _ => {
-                            if (cam_pos.z / CS_F32).floor() >= pos.z as f32 {
-                                draw_commands.push(command.clone());
-                            }
-                        }
-                    }
-                    index += 1;
-                }
-            }
-
-            chunk_renderer.render(&draw_commands, &shader, &camera);
-            draw_commands.clear()
-
-            // let projection: Mat4 = perspective_gl(45.0f32.to_radians(), 1920.0 / 1080.0, 0.1, 10000.0);
-            // shader.set_mat4("projection", &projection);
-            // let view: Mat4 = camera.view_matrix();
-            // shader.set_mat4("view", &view);CA
-            //
-            //
-            // for (pos, chunk) in &world.chunks {
-            //     const SIZE: i32 = CHUNK_SIZE as i32;
-            //     let world_positon = Vec3::new((pos.x * SIZE) as f32, (pos.y * SIZE) as f32, (pos.z * SIZE) as f32);
-            //     shader.set_vec3("worldPosition", &world_positon);
-            //     chunk.mesh.draw();
-            // }
+            chunk_renderer.render_new(&world.chunks, &camera)
         }
 
         window.swap_buffers();
@@ -269,19 +181,11 @@ pub fn process_events(
 ) {
     for (_, event) in glfw::flush_messages(events) {
         match event {
-            WindowEvent::FramebufferSize(width, height) => {
-                unsafe {
-                    gl::Viewport(0, 0, width, height)
-                }
+            WindowEvent::FramebufferSize(width, height) => unsafe {
+                gl::Viewport(0, 0, width, height)
             }
             WindowEvent::Key(Key::R, _, Action::Press, _) => unsafe {
-                if wireframe == &true {
-                    *wireframe = false;
-                    gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
-                } else {
-                    *wireframe = true;
-                    gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
-                }
+                toggle_wireframe(wireframe);
             }
             WindowEvent::CursorPos(x, y) => {
                 let (x, y) = (x as f32, y as f32);
@@ -301,5 +205,15 @@ pub fn process_events(
             }
             _ => {}
         }
+    }
+}
+
+unsafe fn toggle_wireframe(value: &mut bool) {
+    if value == &true {
+        *value = false;
+        gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+    } else {
+        *value = true;
+        gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
     }
 }

@@ -16,10 +16,13 @@ pub struct Camera {
     pub position: Vec3,
     pub yaw: f32,
     pub pitch: f32,
+
     pub front: Vec3,
     pub up: Vec3,
     pub right: Vec3,
     pub world_up: Vec3,
+    //
+    // pub perspective: Mat4,
 }
 
 impl Camera {
@@ -32,6 +35,7 @@ impl Camera {
             up: Vec3::zero(),
             right: Vec3::zero(),
             world_up: Vec3::unit_y(),
+            // perspective: Mat4::identity(),
         };
         camera.update_vectors();
         camera
