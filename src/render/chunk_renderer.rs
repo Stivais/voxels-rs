@@ -9,7 +9,7 @@ use crate::render::camera::Camera;
 use crate::render::frustum::Frustum;
 use crate::render::shaders::Shader;
 use crate::render::textures::texture_array::TextureArray;
-use crate::world::chunk::chunk::{Chunk, CHUNK_SIZE, ChunkPosition, CS_F32};
+use crate::world::chunk::chunk::{Chunk, CS, ChunkPosition, CS_F32};
 
 const BUFFER_SIZE: u32 = 500_000_000;
 const MAX_DRAW_COMMANDS: usize = 100_000;
@@ -70,7 +70,7 @@ impl ChunkRenderer {
 
         gl::GenBuffers(1, &mut renderer.ibo);
 
-        let max_quads = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 6;
+        let max_quads = CS * CS * CS * 6;
         let mut indices = Vec::with_capacity(max_quads);
         for i in 0..max_quads as u32 {
             indices.push((i << 2) | 2);

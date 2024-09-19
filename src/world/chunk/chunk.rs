@@ -3,10 +3,9 @@ use ultraviolet::Vec3;
 use crate::render::chunk_renderer::DrawElementsIndirectCommand;
 
 /// Default chunk size
-pub const CHUNK_SIZE: usize = 32;
-pub const CS_I: isize = CHUNK_SIZE as isize; // delete i thought I needded it but nvm
-pub const CS_I32: i32 = CHUNK_SIZE as i32;
-pub const CS_F32: f32 = CHUNK_SIZE as f32;
+pub const CS: usize = 32;
+pub const CS_I32: i32 = CS as i32;
+pub const CS_F32: f32 = CS as f32;
 
 pub struct Chunk {
     pub blocks: Vec<Block>,
@@ -25,16 +24,16 @@ impl Chunk {
         self.draw_commands.push(draw_command)
     }
 
-    pub fn get_block_at(&self, x: isize, y: isize, z: isize) -> Option<&Block> {
-        if x < 0 || x >= CS_I || y < 0 || y >= CS_I || z < 0 || z >= CS_I {
+    pub fn get_block_at(&self, x: usize, y: usize, z: usize) -> Option<&Block> {
+        if x < 0 || x >= CS || y < 0 || y >= CS || z < 0 || z >= CS {
             return None;
         }
-        let index = x + y * CS_I + z * CS_I * CS_I;
-        self.blocks.get(index as usize)
+        let index = x + y * CS + z * CS * CS;
+        self.blocks.get(index)
     }
 
-    pub fn is_air(&self, x: isize, y: isize, z: isize) -> bool {
-        if x > CS_I - 1 || y > CS_I - 1 || z > CS_I - 1 {
+    pub fn is_air(&self, x: usize, y: usize, z: usize) -> bool {
+        if x > CS - 1 || y > CS - 1 || z > CS - 1 {
             return true;
         }
         match self.get_block_at(x, y, z) {
