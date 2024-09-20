@@ -25,8 +25,9 @@ impl World {
 
 // todo: multi threaded
 pub fn make_example_chunks(world: &mut World, noise: &FastNoiseLite) {
-    for x in 0..CHUNK_AMOUNT * 2 {
-        for z in 0..CHUNK_AMOUNT * 2 {
+    let ca = CHUNK_AMOUNT * 2;
+    for x in -ca..ca {
+        for z in -ca..ca {
             let position = ChunkPosition { x, y: 0, z };
             world.add_chunk(
                 position, generate_chunk_noise(x * CS as i32, z * CS as i32, noise)

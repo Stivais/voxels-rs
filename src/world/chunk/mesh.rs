@@ -44,7 +44,7 @@ pub fn greedy_mesh(chunk: &Chunk) -> Vec<Vec<u64>> {
                         }
                     }
 
-                    vertices[0].push(pack_data(x, y + 1, z, w, d, 0, 0));
+                    vertices[0].push(pack_data(x, y + 1, z, w, d, 0));
                 }
             }
         }
@@ -83,7 +83,7 @@ pub fn greedy_mesh(chunk: &Chunk) -> Vec<Vec<u64>> {
                         }
                     }
 
-                    vertices[1].push(pack_data(x + w, y, z, w, d, 1, 0));
+                    vertices[1].push(pack_data(x + w, y, z, w, d, 0));
                 }
             }
         }
@@ -123,7 +123,7 @@ pub fn greedy_mesh(chunk: &Chunk) -> Vec<Vec<u64>> {
                         }
                     }
 
-                    vertices[2].push(pack_data(x + 1, y, z, d, w, 2, 0));
+                    vertices[2].push(pack_data(x + 1, y, z, d, w, 0));
                 }
             }
         }
@@ -162,7 +162,7 @@ pub fn greedy_mesh(chunk: &Chunk) -> Vec<Vec<u64>> {
                             visited[(z + width) + (y + depth) * CS] = true;
                         }
                     }
-                    vertices[3].push(pack_data(x, y, z, d, w, 3, 0));
+                    vertices[3].push(pack_data(x, y, z, d, w, 0));
                 }
             }
         }
@@ -203,7 +203,7 @@ pub fn greedy_mesh(chunk: &Chunk) -> Vec<Vec<u64>> {
                         }
                     }
 
-                    vertices[4].push(pack_data(x + w, y, z, w, d, 4, 0));
+                    vertices[4].push(pack_data(x + w, y, z, w, d, 0));
                 }
             }
         }
@@ -243,7 +243,7 @@ pub fn greedy_mesh(chunk: &Chunk) -> Vec<Vec<u64>> {
                         }
                     }
 
-                    vertices[5].push(pack_data(x, y, z + 1, w, d, 5, 0));
+                    vertices[5].push(pack_data(x, y, z + 1, w, d, 0));
                 }
             }
         }
@@ -251,12 +251,11 @@ pub fn greedy_mesh(chunk: &Chunk) -> Vec<Vec<u64>> {
     vertices
 }
 
-fn pack_data(x: usize, y: usize, z: usize, width: usize, height: usize, normal: u8, texture_id: u8) -> u64 {
+fn pack_data(x: usize, y: usize, z: usize, width: usize, height: usize, texture_id: u8) -> u64 {
     (x as u64) |
     ((y as u64) << 6) |
     ((z as u64) << 12) |
     ((width as u64) << 18) |
     ((height as u64) << 24) |
-    ((normal as u64) << 30) |
-    ((texture_id as u64) << 33)
+    ((texture_id as u64) << 30)
 }

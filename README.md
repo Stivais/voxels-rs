@@ -11,5 +11,6 @@ optimizations used:
 optimizations i want to use:
 - gpu frustum and occlusion culling
 - level of details
-- efficient multi-threading for stuff like meshing
+- quadtree/octree chunks for better frustum and lods stuff
+- efficient multi-threading for stuff like meshing/chunk generation
 - look into vulkan at some point

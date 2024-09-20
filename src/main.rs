@@ -66,7 +66,7 @@ fn main() {
 
     let noise = {
         let mut noise = FastNoiseLite::with_seed(8008135);
-        noise.set_noise_type(Some(NoiseType::Perlin)); // No need to wrap in Some if unnecessary
+        noise.set_noise_type(Some(NoiseType::Perlin));
         noise
     };
     make_example_chunks(&mut world, &noise);
@@ -94,7 +94,15 @@ fn main() {
             for vertices in greedy_mesh(&chunk) {
                 if vertices.len() == 0 { continue; };
                 // NOTE: Might be issue with negative numbers
-                let base_instance = (pos.x) | (pos.y << 10) | (pos.z << 20);
+                let base_instance = ((pos.x  & 0x7FF) << 21) | ((pos.y & 0x7F) << 14) | ((pos.z & 0x7FF) << 3) | index;
+                println!("x: {}, y: {}, z: {}, after - x: {}, y: {}, z: {}",
+                    pos.x,
+                    pos.y,
+                    pos.z,
+                    base_instance >> 21 & 0x7FF << 21 >> 21,
+                    base_instance >> 14 & 0x7F << 25 >> 25,
+                    base_instance >> 21 & 0x7FF << 21 >> 21
+                );
                 let command = chunk_renderer.get_draw_command(vertices.len() as u32, base_instance as u32);
 
                 chunk_renderer.upload_mesh(&command, vertices);

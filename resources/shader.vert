@@ -8,8 +8,6 @@ layout(binding = 0, std430) readonly buffer ssbo1 {
 out vec3 TexCoord;
 out vec3 color;
 
-//uniform mat4 view;
-//uniform mat4 projection;
 uniform mat4 view_projection;
 
 const vec3 colorLookup[6] = {
@@ -25,14 +23,18 @@ const int flipLookup[6] = int[6](1, -1, 1, 1, -1, 1);
 
 void main()
 {
-    ivec3 chunkOffset = (ivec3(gl_BaseInstance&255u, gl_BaseInstance>>10&255u, gl_BaseInstance>>20&255u)) * 32;
+    ivec3 chunkOffset = ivec3(
+        int((((gl_BaseInstance >> 21) & 0x7FF) << 21) >> 21),
+        int((((gl_BaseInstance >> 14) & 0x7F) << 25) >> 25),
+        int((((gl_BaseInstance >> 3) & 0x7FF) << 21) >> 21)
+    ) * 32;
+
+    uint face = uint((gl_BaseInstance & 0x7));
 
     int vertexID = gl_VertexID % 4;
     int index = gl_VertexID >> 2u;
 
     uint64_t packedData = data[index];
-
-    uint face = uint((packedData >> 30) & 0x07);
 
     ivec3 vertexPos = ivec3(packedData, packedData >> 6u, packedData >> 12u) & 63;
 
@@ -47,7 +49,7 @@ void main()
     position[wDir] += 0.0007 * flipLookup[face] * (wMod * 2 - 1);
     position[hDir] += 0.0007 * (hMod * 2 - 1);
 
-    uint textureID = uint((packedData >> 33) & 0x0F);
+    uint textureID = uint((packedData >> 30) & 0x0F);
 
     color = colorLookup[face];
     // todo: figure out a way to get texCoord with switch statement
