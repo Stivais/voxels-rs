@@ -91,7 +91,7 @@ impl ChunkRenderer {
         renderer
     }
 
-    pub unsafe fn render_new(&mut self, chunks: &HashMap<ChunkPosition, Chunk>, camera: &Camera) {
+    pub unsafe fn render(&mut self, chunks: &HashMap<ChunkPosition, Chunk>, camera: &Camera) {
         self.shader.use_program();
         self.texture_array.bind(TEXTURE_2D_ARRAY);
         self.shader.set_int("textureArray", 0);

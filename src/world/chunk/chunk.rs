@@ -3,7 +3,7 @@ use ultraviolet::Vec3;
 use crate::render::chunk_renderer::DrawElementsIndirectCommand;
 
 /// Default chunk size
-pub const CS: usize = 16;
+pub const CS: usize = 32;
 pub const CS_I32: i32 = CS as i32;
 pub const CS_F32: f32 = CS as f32;
 
